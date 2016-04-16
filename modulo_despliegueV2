@@ -1,0 +1,107 @@
+module buffer4x8(
+	input clk,	// para multiplexeo y comandos
+	input [7:0] b,	// dato para inicializar un buffer
+	input [2:0] comando, // comando para el modulo de depliegue
+				// 000 inicializar buf0
+				// 001 inicializar buf1
+				// 010 inicializar buf2
+				// 011 inicializar buf3
+				// 100 shift left e inicializar buf0 con b
+	//input shl,	// eliminado
+	//input [1:0] bufdestino,  // eliminado
+	input [1:0] muxd,
+	output [7:0] salida
+);
+
+	reg [7:0] buff[3:0]; 	// buffers locales
+	reg [7:0] buf1;		// salida
+
+	wire shl;	// shift left
+	wire [1:0] bufdestino;	//  buf a inicializar
+
+	assign shl=comando[2] & ~comando[1] & ~comando[0];
+	assign bufdestino=comando[1:0];
+
+	assign salida=buf1;
+
+	always @(posedge clk) begin
+		if(shl) begin /* corrimiento */
+			buff[3]<=buff[2];
+			buff[2]<=buff[1];
+			buff[1]<=buff[0];
+			buff[0]<=b;
+		end	/* fin de corrimiento */
+		else begin /* inicializacion */
+			buff[bufdestino]<=b;
+		end	/* fin de inicializacion */
+	end
+
+	always @(posedge clk) begin
+		case(muxd)
+			0:buf1<=buff[0];
+			1:buf1<=buff[1];
+			2:buf1<=buff[2];
+			3:buf1<=buff[3];
+		endcase
+	end
+
+endmodule
+
+
+module buffer4x8_tb();
+	reg clk;
+	reg [7:0] b;
+	reg [2:0] comando;
+	//reg shl;
+	//reg [1:0] bufdestino;
+	reg [1:0] muxd;
+	wire [7:0] salida;
+
+	initial forever #20 clk=~clk;
+
+	initial #400 $finish;
+
+
+	initial begin
+		clk=0;
+		b=8'b0;
+		//shl=0;
+		comando=3'b000;
+		muxd=2'b00;
+
+		#15;
+		comando=3'b000;  // iniciliza buf0 con b
+		b=8'd4;
+		
+		#40;
+		comando=3'b001;
+		b=8'd3;
+		
+		#40;
+		comando=3'b010;
+		b=8'd2;
+
+		#40;
+		comando=3'b011;
+		b=8'd1;
+		
+		#40; #40;
+		// corrimiento
+		//shl=1;
+		comando=3'b100;  // shift left buffers & iniciliza buf0 con b
+		b=8'd7;
+
+		#40 
+		//shl=0;
+		comando=3'b000;  // iniciliza buf0 con b
+		b=8'd7;
+	end
+
+	buffer4x8 U(clk, b, comando, muxd, salida);
+	initial begin
+		$dumpfile("salida.vcd");
+		$dumpvars(0, buffer4x8_tb);
+		$display("time\tClk\tb3\tb2\tb1\tb0");
+		$monitor("%4d\t%b\t%1d\t%1d\t%1d\t%1d",$time, clk, U.buff[3], U.buff[2], U.buff[1], U.buff[0]);
+	end
+endmodule
